@@ -351,6 +351,128 @@ if (isset($_SESSION['cart'])) {
             color: #721c24;
         }
 
+        /* Admin Controls */
+        .admin-controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .admin-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            padding: 0 15px;
+        }
+
+        .admin-buttons .btn {
+            flex: 1;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-success {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.8;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .container {
@@ -370,6 +492,11 @@ if (isset($_SESSION['cart'])) {
             .product-grid {
                 grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             }
+
+            .modal-content {
+                margin: 10% auto;
+                width: 95%;
+            }
         }
     </style>
 </head>
@@ -386,9 +513,13 @@ if (isset($_SESSION['cart'])) {
                     <li><a href="contact.php"><i class="fas fa-phone"></i> ติดต่อ</a></li>
                     <?php if (isLoggedIn()): ?>
                         <li><a href="orders.php"><i class="fas fa-receipt"></i> คำสั่งซื้อ</a></li>
+                        <?php if (isAdmin()): ?>
+                            <li><a href="Admin Dashboard.php"><i class="fas fa-cog"></i> จัดการระบบ</a></li>
+                        <?php endif; ?>
+                        <li><a href="#" id="user-menu"><i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['username']); ?></a></li>
                         <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> ออกจากระบบ</a></li>
                     <?php else: ?>
-                        <li><a href="login.php"><i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ</a></li>
+                        <li><a href="#" id="login-btn"><i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ</a></li>
                         <li><a href="register.php"><i class="fas fa-user-plus"></i> สมัครสมาชิก</a></li>
                     <?php endif; ?>
                 </ul>
@@ -453,6 +584,14 @@ if (isset($_SESSION['cart'])) {
                 <?php endif; ?>
             </h2>
 
+            <?php if (isAdmin()): ?>
+                <div class="admin-controls mb-3">
+                    <button class="btn btn-success" onclick="addProduct()">
+                        <i class="fas fa-plus"></i> เพิ่มสินค้าใหม่
+                    </button>
+                </div>
+            <?php endif; ?>
+
             <?php if (empty($products)): ?>
                 <p>ไม่พบสินค้าที่ค้นหา</p>
             <?php else: ?>
@@ -476,6 +615,16 @@ if (isset($_SESSION['cart'])) {
                                     </div>
                                 </div>
                             </a>
+                            <?php if (isAdmin()): ?>
+                                <div class="admin-buttons mb-2">
+                                    <button class="btn btn-sm btn-primary" onclick="editProduct(<?php echo $product['id']; ?>)">
+                                        <i class="fas fa-edit"></i> แก้ไข
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteProduct(<?php echo $product['id']; ?>, '<?php echo htmlspecialchars($product['name']); ?>')">
+                                        <i class="fas fa-trash"></i> ลบ
+                                    </button>
+                                </div>
+                            <?php endif; ?>
                             <button class="add-to-cart"
                                     onclick="addToCart(<?php echo $product['id']; ?>)"
                                     <?php echo $product['stock'] <= 0 ? 'disabled' : ''; ?>>
@@ -508,7 +657,238 @@ if (isset($_SESSION['cart'])) {
         </main>
     </div>
 
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>เข้าสู่ระบบ</h3>
+                <span class="close" onclick="closeModal('loginModal')">&times;</span>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="login_username">ชื่อผู้ใช้:</label>
+                    <input type="text" id="login_username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login_password">รหัสผ่าน:</label>
+                    <input type="password" id="login_password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">เข้าสู่ระบบ</button>
+                </div>
+                <div class="form-group" style="text-align: center;">
+                    <a href="register.php">สมัครสมาชิก</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="productModalTitle">เพิ่มสินค้า</h3>
+                <span class="close" onclick="closeModal('productModal')">&times;</span>
+            </div>
+            <form id="productForm">
+                <input type="hidden" id="product_id" name="product_id" value="0">
+                <div class="form-group">
+                    <label for="product_name">ชื่อสินค้า:</label>
+                    <input type="text" id="product_name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="product_description">รายละเอียด:</label>
+                    <textarea id="product_description" name="description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="product_price">ราคา:</label>
+                    <input type="number" id="product_price" name="price" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="product_stock">จำนวนสต็อก:</label>
+                    <input type="number" id="product_stock" name="stock" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="product_categories">หมวดหมู่:</label>
+                    <select id="product_categories" name="categories[]" multiple>
+                        <?php foreach ($categories as $category): ?>
+                            <option value="<?php echo $category['id']; ?>"><?php echo htmlspecialchars($category['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small>กด Ctrl+Click เพื่อเลือกหลายหมวดหมู่</small>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-success" style="width: 100%;">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        // Check if user is admin
+        const isAdmin = <?php echo isAdmin() ? 'true' : 'false'; ?>;
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+
+        // Login functionality
+        document.getElementById('login-btn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            openModal('loginModal');
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('ajax_login.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('เข้าสู่ระบบสำเร็จ');
+                    location.reload(); // Reload to update the interface
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+            });
+        });
+
+        // Product management functions (admin only)
+        function addProduct() {
+            if (!isAdmin) return;
+            
+            document.getElementById('productModalTitle').textContent = 'เพิ่มสินค้าใหม่';
+            document.getElementById('productForm').reset();
+            document.getElementById('product_id').value = '0';
+            openModal('productModal');
+        }
+
+        function editProduct(productId) {
+            if (!isAdmin) return;
+            
+            const formData = new FormData();
+            formData.append('action', 'get');
+            formData.append('product_id', productId);
+            
+            fetch('ajax_product_management.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const product = data.product;
+                    document.getElementById('productModalTitle').textContent = 'แก้ไขสินค้า';
+                    document.getElementById('product_id').value = product.id;
+                    document.getElementById('product_name').value = product.name;
+                    document.getElementById('product_description').value = product.description;
+                    document.getElementById('product_price').value = product.price;
+                    document.getElementById('product_stock').value = product.stock;
+                    
+                    // Set categories
+                    const categorySelect = document.getElementById('product_categories');
+                    for (let option of categorySelect.options) {
+                        option.selected = product.categories.includes(parseInt(option.value));
+                    }
+                    
+                    openModal('productModal');
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า');
+            });
+        }
+
+        function deleteProduct(productId, productName) {
+            if (!isAdmin) return;
+            
+            if (!confirm('คุณต้องการลบสินค้า "' + productName + '" หรือไม่?')) {
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'delete');
+            formData.append('product_id', productId);
+            
+            fetch('ajax_product_management.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('ลบสินค้าเรียบร้อยแล้ว');
+                    location.reload();
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('เกิดข้อผิดพลาดในการลบสินค้า');
+            });
+        }
+
+        // Product form submission
+        document.getElementById('productForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!isAdmin) return;
+            
+            const formData = new FormData(this);
+            formData.append('action', 'save');
+            
+            // Get selected categories
+            const categorySelect = document.getElementById('product_categories');
+            const selectedCategories = Array.from(categorySelect.selectedOptions).map(option => option.value);
+            formData.delete('categories[]');
+            selectedCategories.forEach(cat => formData.append('categories[]', cat));
+            
+            fetch('ajax_product_management.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeModal('productModal');
+                    location.reload();
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('เกิดข้อผิดพลาดในการบันทึกสินค้า');
+            });
+        });
+
+        // Add to cart function
         function addToCart(productId) {
             fetch('add_to_cart.php', {
                 method: 'POST',

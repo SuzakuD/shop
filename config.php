@@ -34,10 +34,36 @@ function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
+function isAdmin() {
+    return isLoggedIn() && isset($_SESSION['username']) && $_SESSION['username'] === 'admin';
+}
+
 function requireLogin() {
     if (!isLoggedIn()) {
         header('Location: login.php');
         exit();
+    }
+}
+
+function requireAdmin() {
+    if (!isAdmin()) {
+        header('Location: index.php');
+        exit();
+    }
+}
+
+function getCurrentUser() {
+    if (!isLoggedIn()) {
+        return null;
+    }
+    
+    try {
+        $pdo = getConnection();
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        return null;
     }
 }
 ?>
