@@ -17,7 +17,7 @@ if ($product_id <= 0) {
 }
 
 try {
-    $pdo = getConnection();
+    // Database connection is now available via $pdo from config.php
     
     // ตรวจสอบสินค้าและสต็อก
     $stmt = $pdo->prepare("SELECT id, name, price, stock FROM products WHERE id = ?");

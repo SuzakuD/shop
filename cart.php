@@ -1,8 +1,6 @@
 <?php
 require_once 'config.php';
 
-$pdo = getConnection();
-
 // ดำเนินการเมื่อมีการอัพเดตตะกร้า
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_cart'])) {

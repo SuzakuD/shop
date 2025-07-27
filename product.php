@@ -11,14 +11,12 @@ if (!$product_id) {
 }
 
 try {
-    $pdo = getConnection();
     
     // ดึงข้อมูลสินค้า
     $stmt = $pdo->prepare("
         SELECT p.*, c.name as category_name 
         FROM products p
-        LEFT JOIN product_category pc ON p.id = pc.product_id
-        LEFT JOIN categories c ON pc.category_id = c.id
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = ?
     ");
     $stmt->execute([$product_id]);

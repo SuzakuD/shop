@@ -1,8 +1,6 @@
 <?php
 session_start();
-require_once 'config.php';  // โหลด config ที่มี getConnection()
-
-$pdo = getConnection();  // สร้างตัวแปรเชื่อมต่อฐานข้อมูล
+require_once 'config.php';
 
 // ถ้าล็อกอินแล้วให้กลับไปหน้าแรก
 if (isset($_SESSION['user_id'])) {
