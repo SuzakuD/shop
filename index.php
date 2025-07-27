@@ -1,8 +1,6 @@
 <?php
 require_once 'config.php';
 
-$pdo = getConnection();
-
 // Get categories
 $stmt = $pdo->query("SELECT * FROM categories ORDER BY name");
 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
