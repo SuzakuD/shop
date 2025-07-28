@@ -169,6 +169,7 @@ CREATE TABLE `users` (
   `username` varchar(100) NOT NULL,
   `password` varchar(255) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `is_admin` tinyint(1) DEFAULT 0,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -176,10 +177,11 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `username`, `password`, `email`, `created_at`) VALUES
-(1, 'user1', '$2y$10$abcdefghijklmnopqrstuv', 'user1@example.com', '2025-07-08 14:49:19'),
-(2, 'user2', '$2y$10$mnopqrstuvabcdefghijk', 'user2@example.com', '2025-07-08 14:49:19'),
-(3, 'fisherman', '$2y$10$somehashedpasswordhere123456', 'fishlover@example.com', '2025-07-08 14:49:19');
+INSERT INTO `users` (`id`, `username`, `password`, `email`, `is_admin`, `created_at`) VALUES
+(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@toomtamfishing.com', 1, '2025-07-08 14:49:19'),
+(2, 'user1', '$2y$10$abcdefghijklmnopqrstuv', 'user1@example.com', 0, '2025-07-08 14:49:19'),
+(3, 'user2', '$2y$10$mnopqrstuvabcdefghijk', 'user2@example.com', 0, '2025-07-08 14:49:19'),
+(4, 'fisherman', '$2y$10$somehashedpasswordhere123456', 'fishlover@example.com', 0, '2025-07-08 14:49:19');
 
 --
 -- Indexes for dumped tables
@@ -259,7 +261,7 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Constraints for dumped tables
