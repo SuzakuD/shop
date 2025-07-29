@@ -1,218 +1,74 @@
-<?php
-session_start();
-require_once 'config.php';
-
-// จัดการการส่งฟอร์ม
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $name = $_POST['name'] ?? '';
-    $email = $_POST['email'] ?? '';
-    $phone = $_POST['phone'] ?? '';
-    $subject = $_POST['subject'] ?? '';
-    $message = $_POST['message'] ?? '';
-    
-    // ในระบบจริง ควรส่งอีเมลหรือบันทึกลงฐานข้อมูล
-    // ที่นี่จะแสดงข้อความสำเร็จเพื่อเป็นตัวอย่าง
-    $_SESSION['contact_success'] = true;
-    header('Location: contact.php');
-    exit();
-}
-?>
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ติดต่อเรา - Toomtam Fishing</title>
+    <title>Contact Us - Fishing Store</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary: #FF6B35;
-            --secondary: #F7931E;
-            --dark: #2C3E50;
-            --light: #ECF0F1;
+        .navbar-brand {
+            font-weight: bold;
+            color: #2c5aa0 !important;
         }
-
-        body {
-            font-family: 'Kanit', sans-serif;
-            background: #f8f9fa;
+        .btn-primary {
+            background-color: #2c5aa0;
+            border-color: #2c5aa0;
         }
-
-        .navbar {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .btn-primary:hover {
+            background-color: #1e3d6f;
+            border-color: #1e3d6f;
         }
-
-        .contact-header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            padding: 80px 0;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .contact-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: repeating-linear-gradient(
-                45deg,
-                transparent,
-                transparent 10px,
-                rgba(255,255,255,0.1) 10px,
-                rgba(255,255,255,0.1) 20px
-            );
-            animation: slide 20s linear infinite;
-        }
-
-        @keyframes slide {
-            0% { transform: translate(-50%, -50%); }
-            100% { transform: translate(0, 0); }
-        }
-
-        .contact-header h1 {
-            position: relative;
-            font-size: 3rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }
-
-        .contact-info {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            padding: 40px;
-            margin-bottom: 30px;
-            transition: transform 0.3s;
-        }
-
-        .contact-info:hover {
-            transform: translateY(-5px);
-        }
-
-        .contact-info i {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 20px;
-        }
-
-        .contact-form {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            padding: 40px;
-        }
-
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
-        }
-
-        .btn-send {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
+        .contact-card {
             border: none;
-            padding: 12px 40px;
-            font-size: 1.1rem;
-            border-radius: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.3s;
         }
-
-        .btn-send:hover {
-            transform: translateY(-2px);
-            color: white;
-        }
-
-        .map-container {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            padding: 20px;
-            margin-top: 30px;
-            height: 400px;
-        }
-
-        .social-links {
-            margin-top: 30px;
-            text-align: center;
-        }
-
-        .social-links a {
-            display: inline-block;
-            width: 50px;
-            height: 50px;
-            line-height: 50px;
-            text-align: center;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border-radius: 50%;
-            margin: 0 10px;
-            font-size: 1.5rem;
-            transition: transform 0.3s;
-        }
-
-        .social-links a:hover {
+        .contact-card:hover {
             transform: translateY(-5px);
-            color: white;
-        }
-
-        .success-message {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .working-hours {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        .working-hours h5 {
-            color: var(--primary);
-            margin-bottom: 15px;
-        }
-
-        .working-hours p {
-            margin-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
         }
     </style>
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container">
             <a class="navbar-brand" href="index.php">
-                <i class="fas fa-fish"></i> Toomtam Fishing
+                <i class="fas fa-fish"></i> Fishing Store
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php">หน้าแรก</a>
+                        <a class="nav-link" href="index.php">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link active" href="contact.php">ติดต่อเรา</a>
+                        <a class="nav-link" href="products.php">Products</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="about.php">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="contact.php">Contact</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="btn btn-outline-primary me-2" href="index.php">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-primary" href="register.php">
+                            <i class="fas fa-user-plus"></i> Register
+                        </a>
+                    </li>
+                    <li class="nav-item ms-3">
                         <a class="nav-link" href="cart.php">
-                            <i class="fas fa-shopping-cart"></i>
-                            <?php if (isset($_SESSION['cart']) && count($_SESSION['cart']) > 0): ?>
-                                <span class="badge bg-danger"><?php echo count($_SESSION['cart']); ?></span>
-                            <?php endif; ?>
+                            <i class="fas fa-shopping-cart"></i> Cart
+                            <span class="badge bg-primary">0</span>
                         </a>
                     </li>
                 </ul>
@@ -220,125 +76,262 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </nav>
 
-    <!-- Contact Header -->
-    <div class="contact-header">
+    <!-- Header -->
+    <div class="bg-primary text-white py-5">
         <div class="container">
-            <h1>ติดต่อเรา</h1>
-            <p class="lead">เรายินดีรับฟังความคิดเห็นและคำแนะนำจากคุณ</p>
+            <div class="row">
+                <div class="col-12 text-center">
+                    <h1 class="display-4 mb-3">Contact Us</h1>
+                    <p class="lead">We'd love to hear from you! Get in touch with our team.</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Contact Content -->
-    <div class="container my-5">
-        <?php if (isset($_SESSION['contact_success']) && $_SESSION['contact_success']): ?>
-            <div class="success-message">
-                <i class="fas fa-check-circle fa-3x mb-3"></i>
-                <h4>ส่งข้อความเรียบร้อยแล้ว!</h4>
-                <p>ทีมงานของเราจะติดต่อกลับโดยเร็วที่สุด ขอบคุณที่ติดต่อเรา</p>
+    <section class="py-5">
+        <div class="container">
+            <!-- Contact Cards -->
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="card contact-card h-100 text-center p-4">
+                        <div class="card-body">
+                            <i class="fas fa-map-marker-alt fa-3x text-primary mb-3"></i>
+                            <h4>Visit Our Store</h4>
+                            <p class="text-muted mb-0">
+                                123 Fishing St<br>
+                                Marina Bay, CA 90210<br>
+                                United States
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card contact-card h-100 text-center p-4">
+                        <div class="card-body">
+                            <i class="fas fa-phone fa-3x text-primary mb-3"></i>
+                            <h4>Call Us</h4>
+                            <p class="text-muted mb-0">
+                                <strong>Store:</strong> (555) 123-4567<br>
+                                <strong>Support:</strong> (555) 123-4568<br>
+                                <strong>Fax:</strong> (555) 123-4569
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card contact-card h-100 text-center p-4">
+                        <div class="card-body">
+                            <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
+                            <h4>Email Us</h4>
+                            <p class="text-muted mb-0">
+                                <strong>General:</strong> info@fishingstore.com<br>
+                                <strong>Support:</strong> support@fishingstore.com<br>
+                                <strong>Sales:</strong> sales@fishingstore.com
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <?php unset($_SESSION['contact_success']); ?>
-        <?php endif; ?>
 
-        <div class="row">
-            <!-- Contact Info -->
-            <div class="col-lg-4">
-                <div class="contact-info text-center">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <h4>ที่อยู่</h4>
-                    <p>123 ถนนประมง<br>อำเภอเมือง จังหวัดพิษณุโลก<br>65000</p>
+            <!-- Contact Form & Info -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0"><i class="fas fa-envelope me-2"></i>Send Us a Message</h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="contactForm">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="firstName" class="form-label">First Name *</label>
+                                        <input type="text" class="form-control" id="firstName" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="lastName" class="form-label">Last Name *</label>
+                                        <input type="text" class="form-control" id="lastName" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="email" class="form-label">Email Address *</label>
+                                        <input type="email" class="form-control" id="email" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="phone" class="form-label">Phone Number</label>
+                                        <input type="tel" class="form-control" id="phone">
+                                    </div>
+                                    <div class="col-12">
+                                        <label for="subject" class="form-label">Subject *</label>
+                                        <select class="form-select" id="subject" required>
+                                            <option value="">Choose a subject...</option>
+                                            <option value="general">General Inquiry</option>
+                                            <option value="product">Product Question</option>
+                                            <option value="order">Order Support</option>
+                                            <option value="return">Returns & Exchanges</option>
+                                            <option value="feedback">Feedback</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label for="message" class="form-label">Message *</label>
+                                        <textarea class="form-control" id="message" rows="5" placeholder="Tell us how we can help you..." required></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="newsletter">
+                                            <label class="form-check-label" for="newsletter">
+                                                Subscribe to our newsletter for fishing tips and special offers
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-primary btn-lg">
+                                            <i class="fas fa-paper-plane me-2"></i>Send Message
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
+                
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Store Hours</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-0">
+                                <li class="d-flex justify-content-between border-bottom py-2">
+                                    <span>Monday - Friday</span>
+                                    <span>9:00 AM - 8:00 PM</span>
+                                </li>
+                                <li class="d-flex justify-content-between border-bottom py-2">
+                                    <span>Saturday</span>
+                                    <span>8:00 AM - 9:00 PM</span>
+                                </li>
+                                <li class="d-flex justify-content-between py-2">
+                                    <span>Sunday</span>
+                                    <span>10:00 AM - 6:00 PM</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
 
-                <div class="contact-info text-center">
-                    <i class="fas fa-phone-alt"></i>
-                    <h4>โทรศัพท์</h4>
-                    <p>055-123-456<br>081-234-5678</p>
-                </div>
-
-                <div class="contact-info text-center">
-                    <i class="fas fa-envelope"></i>
-                    <h4>อีเมล</h4>
-                    <p>info@toomtamfishing.com<br>support@toomtamfishing.com</p>
-                </div>
-
-                <div class="working-hours">
-                    <h5><i class="fas fa-clock"></i> เวลาทำการ</h5>
-                    <p><span>จันทร์ - ศุกร์</span><span>09:00 - 18:00</span></p>
-                    <p><span>เสาร์</span><span>09:00 - 16:00</span></p>
-                    <p><span>อาทิตย์</span><span>ปิดทำการ</span></p>
-                </div>
-            </div>
-
-            <!-- Contact Form -->
-            <div class="col-lg-8">
-                <div class="contact-form">
-                    <h3 class="mb-4">ส่งข้อความถึงเรา</h3>
-                    <form method="POST">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">ชื่อ-นามสกุล *</label>
-                                <input type="text" class="form-control" name="name" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">อีเมล *</label>
-                                <input type="email" class="form-control" name="email" required>
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>FAQ</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="faqAccordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                            Do you offer returns?
+                                        </button>
+                                    </h2>
+                                    <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body">
+                                            Yes! We offer 30-day returns on all products in original condition.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                            How fast is shipping?
+                                        </button>
+                                    </h2>
+                                    <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body">
+                                            Standard shipping takes 3-5 business days. Express shipping is 1-2 days.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                            Do you price match?
+                                        </button>
+                                    </h2>
+                                    <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                        <div class="accordion-body">
+                                            Yes, we price match with authorized dealers. Contact us for details.
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">เบอร์โทรศัพท์</label>
-                                <input type="tel" class="form-control" name="phone">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">หัวข้อ *</label>
-                                <select class="form-control" name="subject" required>
-                                    <option value="">เลือกหัวข้อ</option>
-                                    <option value="สอบถามสินค้า">สอบถามสินค้า</option>
-                                    <option value="ติดตามสินค้า">ติดตามสินค้า</option>
-                                    <option value="แจ้งปัญหา">แจ้งปัญหา</option>
-                                    <option value="ข้อเสนอแนะ">ข้อเสนอแนะ</option>
-                                    <option value="อื่นๆ">อื่นๆ</option>
-                                </select>
-                            </div>
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-share-alt me-2"></i>Follow Us</h5>
                         </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">ข้อความ *</label>
-                            <textarea class="form-control" name="message" rows="5" required></textarea>
+                        <div class="card-body text-center">
+                            <a href="#" class="btn btn-outline-primary me-2 mb-2">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                            <a href="#" class="btn btn-outline-info me-2 mb-2">
+                                <i class="fab fa-twitter"></i>
+                            </a>
+                            <a href="#" class="btn btn-outline-danger me-2 mb-2">
+                                <i class="fab fa-instagram"></i>
+                            </a>
+                            <a href="#" class="btn btn-outline-dark mb-2">
+                                <i class="fab fa-youtube"></i>
+                            </a>
                         </div>
-
-                        <div class="text-center">
-                            <button type="submit" class="btn btn-send">
-                                <i class="fas fa-paper-plane"></i> ส่งข้อความ
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
+    </section>
 
-        <!-- Map -->
-        <div class="map-container">
-            <iframe 
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3785.8961745732857!2d100.25878931531933!3d16.823972088439777!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x30df9345d9c9f5e5%3A0x69e5a6a8d8f8a8a8!2sPhitsanulok!5e0!3m2!1sen!2sth!4v1234567890123" 
-                width="100%" 
-                height="100%" 
-                style="border:0; border-radius: 10px;" 
-                allowfullscreen="" 
-                loading="lazy">
-            </iframe>
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5><i class="fas fa-fish"></i> Fishing Store</h5>
+                    <p class="text-muted">Your trusted partner for all fishing adventures. Quality gear, expert advice, and unbeatable prices.</p>
+                </div>
+                <div class="col-md-4">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="index.php" class="text-muted text-decoration-none">Home</a></li>
+                        <li><a href="products.php" class="text-muted text-decoration-none">Products</a></li>
+                        <li><a href="about.php" class="text-muted text-decoration-none">About Us</a></li>
+                        <li><a href="contact.php" class="text-muted text-decoration-none">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5>Contact Info</h5>
+                    <ul class="list-unstyled text-muted">
+                        <li><i class="fas fa-phone"></i> +1 (555) 123-4567</li>
+                        <li><i class="fas fa-envelope"></i> info@fishingstore.com</li>
+                        <li><i class="fas fa-map-marker-alt"></i> 123 Fishing St, Marina Bay</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="text-center text-muted">
+                <p>&copy; 2024 Fishing Store. All rights reserved.</p>
+            </div>
         </div>
-
-        <!-- Social Links -->
-        <div class="social-links">
-            <h4 class="mb-4">ติดตามเราได้ที่</h4>
-            <a href="#"><i class="fab fa-facebook-f"></i></a>
-            <a href="#"><i class="fab fa-instagram"></i></a>
-            <a href="#"><i class="fab fa-line"></i></a>
-            <a href="#"><i class="fab fa-youtube"></i></a>
-        </div>
-    </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Here you would normally send the form data to a server
+            alert('Thank you for your message! We\'ll get back to you soon.');
+            
+            // Reset the form
+            this.reset();
+        });
+    </script>
 </body>
 </html>
