@@ -1,43 +1,64 @@
 <?php
 // Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'fishing_store');
+$host = 'localhost';
+$dbname = 'fishing_store';
+$username = 'root';
+$password = '';
 
-// Create database connection
-function getConnection() {
-    try {
-        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        return $pdo;
-    } catch(PDOException $e) {
-        die("Connection failed: " . $e->getMessage());
-    }
-}
-
-// Start session if not started
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
+// Create PDO connection
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+} catch(PDOException $e) {
+    die("Connection failed: " . $e->getMessage());
 }
 
 // Helper functions
-function formatPrice($price) {
-    return number_format($price, 2) . ' บาท';
-}
-
 function sanitizeInput($data) {
     return htmlspecialchars(strip_tags(trim($data)));
+}
+
+function formatPrice($price) {
+    return '$' . number_format($price, 2);
 }
 
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
+function isAdmin() {
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+}
+
 function requireLogin() {
     if (!isLoggedIn()) {
-        header('Location: login.php');
-        exit();
+        header('Location: index.php');
+        exit;
     }
 }
+
+function requireAdmin() {
+    if (!isAdmin()) {
+        header('Location: index.php');
+        exit;
+    }
+}
+
+function getCartCount() {
+    if (!isLoggedIn()) {
+        return 0;
+    }
+    
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT SUM(quantity) FROM cart WHERE user_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    return (int)$stmt->fetchColumn();
+}
+
+// Site settings
+$site_name = "Fishing Store";
+$site_description = "Your trusted partner for all fishing adventures";
+$site_keywords = "fishing, fishing gear, rods, reels, lures, tackle";
 ?>
