@@ -1,513 +1,481 @@
 <?php
+session_start();
 require_once 'config.php';
 
-$pdo = getConnection();
+// Require login for cart
+requireLogin();
 
-// ดำเนินการเมื่อมีการอัพเดตตะกร้า
+// Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['update_cart'])) {
-        $quantities = $_POST['quantities'] ?? [];
-        
-        foreach ($quantities as $product_id => $quantity) {
-            $product_id = (int)$product_id;
-            $quantity = (int)$quantity;
+    $action = $_POST['action'] ?? '';
+    $response = ['success' => false, 'message' => ''];
+    
+    switch ($action) {
+        case 'add':
+            $product_id = (int)($_POST['product_id'] ?? 0);
+            $quantity = max(1, (int)($_POST['quantity'] ?? 1));
             
-            if ($quantity <= 0) {
-                unset($_SESSION['cart'][$product_id]);
-            } else {
-                // ตรวจสอบสต็อก
-                $stmt = $pdo->prepare("SELECT stock FROM products WHERE id = ?");
+            if ($product_id) {
+                // Check if product exists and has stock
+                $stmt = $pdo->prepare("SELECT stock FROM products WHERE id = ? AND status = 'active'");
                 $stmt->execute([$product_id]);
-                $stock = $stmt->fetchColumn();
+                $product = $stmt->fetch();
                 
-                if ($quantity > $stock) {
-                    $_SESSION['message'] = "จำนวนสินค้าเกินสต็อกที่มี";
-                    $_SESSION['message_type'] = "error";
+                if ($product && $product['stock'] >= $quantity) {
+                    try {
+                        $stmt = $pdo->prepare("INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?) 
+                                             ON DUPLICATE KEY UPDATE quantity = quantity + ?");
+                        $stmt->execute([$_SESSION['user_id'], $product_id, $quantity, $quantity]);
+                        $response['success'] = true;
+                        $response['message'] = 'Product added to cart';
+                    } catch (PDOException $e) {
+                        $response['message'] = 'Error adding to cart';
+                    }
                 } else {
-                    $_SESSION['cart'][$product_id] = $quantity;
+                    $response['message'] = 'Product not available or insufficient stock';
                 }
             }
-        }
-        
-        if (!isset($_SESSION['message'])) {
-            $_SESSION['message'] = "อัพเดตตะกร้าเรียบร้อยแล้ว";
-            $_SESSION['message_type'] = "success";
-        }
-        
-        header('Location: cart.php');
-        exit;
+            break;
+            
+        case 'update':
+            $product_id = (int)($_POST['product_id'] ?? 0);
+            $quantity = max(0, (int)($_POST['quantity'] ?? 0));
+            
+            if ($product_id) {
+                if ($quantity > 0) {
+                    $stmt = $pdo->prepare("UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?");
+                    $stmt->execute([$quantity, $_SESSION['user_id'], $product_id]);
+                } else {
+                    $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ? AND product_id = ?");
+                    $stmt->execute([$_SESSION['user_id'], $product_id]);
+                }
+                $response['success'] = true;
+                $response['message'] = 'Cart updated';
+            }
+            break;
+            
+        case 'remove':
+            $product_id = (int)($_POST['product_id'] ?? 0);
+            
+            if ($product_id) {
+                $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ? AND product_id = ?");
+                $stmt->execute([$_SESSION['user_id'], $product_id]);
+                $response['success'] = true;
+                $response['message'] = 'Product removed from cart';
+            }
+            break;
     }
     
-    if (isset($_POST['remove_item'])) {
-        $product_id = (int)$_POST['product_id'];
-        unset($_SESSION['cart'][$product_id]);
-        
-        $_SESSION['message'] = "ลบสินค้าออกจากตะกร้าเรียบร้อยแล้ว";
-        $_SESSION['message_type'] = "success";
-        
-        header('Location: cart.php');
-        exit;
-    }
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
 }
 
-// ดึงข้อมูลสินค้าในตะกร้า
-$cart_items = [];
-$total_price = 0;
+// Get cart items
+$cart_items = $pdo->prepare("
+    SELECT c.*, p.name, p.price, p.image, p.stock 
+    FROM cart c 
+    JOIN products p ON c.product_id = p.id 
+    WHERE c.user_id = ? AND p.status = 'active'
+    ORDER BY c.created_at DESC
+");
+$cart_items->execute([$_SESSION['user_id']]);
+$cart_items = $cart_items->fetchAll();
 
-if (isset($_SESSION['cart']) && !empty($_SESSION['cart'])) {
-    $product_ids = array_keys($_SESSION['cart']);
-    $placeholders = str_repeat('?,', count($product_ids) - 1) . '?';
-    
-    $stmt = $pdo->prepare("SELECT * FROM products WHERE id IN ($placeholders)");
-    $stmt->execute($product_ids);
-    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($products as $product) {
-        $quantity = $_SESSION['cart'][$product['id']];
-        $subtotal = $product['price'] * $quantity;
-        $total_price += $subtotal;
-        
-        $cart_items[] = [
-            'product' => $product,
-            'quantity' => $quantity,
-            'subtotal' => $subtotal
-        ];
-    }
+// Calculate totals
+$subtotal = 0;
+foreach ($cart_items as $item) {
+    $subtotal += $item['price'] * $item['quantity'];
 }
 
-// คำนวณจำนวนสินค้าในตะกร้า
-$cart_count = 0;
-if (isset($_SESSION['cart'])) {
-    $cart_count = array_sum($_SESSION['cart']);
-}
+$shipping = $subtotal >= 75 ? 0 : 9.99; // Free shipping over $75
+$tax = $subtotal * 0.08; // 8% tax
+$total = $subtotal + $shipping + $tax;
 ?>
 
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ตะกร้าสินค้า - Toom Tam Fishing</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>Shopping Cart - <?= $site_name ?></title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --primary-color: #0066cc;
+            --secondary-color: #004499;
+            --accent-color: #ff6b35;
+            --light-gray: #f8f9fa;
+            --dark-gray: #343a40;
+            --border-radius: 12px;
+        }
+        
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
-            line-height: 1.6;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
-            color: white;
-            padding: 1rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-        }
-
-        .logo {
-            font-size: 2rem;
-            font-weight: bold;
-            color: white;
-            text-decoration: none;
-        }
-
-        .nav-menu {
-            display: flex;
-            list-style: none;
-            gap: 2rem;
-        }
-
-        .nav-menu a {
-            color: white;
-            text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            transition: background 0.3s;
-        }
-
-        .nav-menu a:hover {
-            background: rgba(255,255,255,0.2);
-        }
-
-        .cart-icon {
-            position: relative;
-            font-size: 1.5rem;
-        }
-
-        .cart-count {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #e74c3c;
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .cart-content {
+        
+        .cart-item {
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
         }
-
-        .cart-title {
-            font-size: 2rem;
-            color: #2c3e50;
-            margin-bottom: 30px;
-            text-align: center;
+        
+        .cart-item:hover {
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
         }
-
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border-left: 4px solid;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            border-color: #27ae60;
-            color: #155724;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            border-color: #e74c3c;
-            color: #721c24;
-        }
-
-        .cart-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-
-        .cart-table th,
-        .cart-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .cart-table th {
-            background: #f8f9fa;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-
-        .product-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
+        
         .product-image {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #ecf0f1, #bdc3c7);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #7f8c8d;
-            font-size: 2rem;
+            background: var(--light-gray);
+            border-radius: 8px;
+            overflow: hidden;
         }
-
-        .product-details h4 {
-            color: #2c3e50;
-            margin-bottom: 5px;
+        
+        .product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
-
-        .product-details p {
-            color: #7f8c8d;
-            font-size: 0.9rem;
-        }
-
+        
         .quantity-input {
-            width: 70px;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            width: 80px;
             text-align: center;
         }
-
-        .price {
-            font-weight: bold;
-            color: #e74c3c;
-            font-size: 1.1rem;
+        
+        .summary-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            position: sticky;
+            top: 100px;
         }
-
-        .remove-btn {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .remove-btn:hover {
-            background: #c0392b;
-        }
-
-        .cart-summary {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-
-        .total-price {
-            font-size: 1.5rem;
-            color: #e74c3c;
-        }
-
-        .cart-actions {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-
-        .btn {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-            transition: background 0.3s;
-        }
-
+        
         .btn-primary {
-            background: #3498db;
-            color: white;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 12px 24px;
+            font-weight: 500;
+            transition: all 0.3s ease;
         }
-
+        
         .btn-primary:hover {
-            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,102,204,0.3);
         }
-
-        .btn-success {
-            background: #27ae60;
-            color: white;
+        
+        .navbar {
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            background: white !important;
         }
-
-        .btn-success:hover {
-            background: #219a52;
-        }
-
-        .btn-secondary {
-            background: #95a5a6;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #7f8c8d;
-        }
-
-        .empty-cart {
-            text-align: center;
-            color: #7f8c8d;
-            font-size: 1.2rem;
-            padding: 50px;
-        }
-
-        .empty-cart i {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            color: #bdc3c7;
-        }
-
-        @media (max-width: 768px) {
-            .header-content {
-                flex-direction: column;
-                gap: 1rem;
-            }
-            
-            .nav-menu {
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-            
-            .cart-table {
-                font-size: 0.9rem;
-            }
-            
-            .cart-actions {
-                flex-direction: column;
-            }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <a href="index.php" class="logo">
-                <i class="fas fa-fish"></i> Toom Tam Fishing
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">
+                <i class="fas fa-fish me-2"></i><?= $site_name ?>
             </a>
-            <nav>
-                <ul class="nav-menu">
-                    <li><a href="index.php"><i class="fas fa-home"></i> หน้าแรก</a></li>
-                    <li><a href="cart.php"><i class="fas fa-shopping-cart"></i> ตะกร้า</a></li>
-                    <li><a href="contact.php"><i class="fas fa-phone"></i> ติดต่อ</a></li>
-                    <?php if (isLoggedIn()): ?>
-                        <li><a href="orders.php"><i class="fas fa-receipt"></i> คำสั่งซื้อ</a></li>
-                        <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> ออกจากระบบ</a></li>
-                    <?php else: ?>
-                        <li><a href="login.php"><i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบ</a></li>
-                        <li><a href="register.php"><i class="fas fa-user-plus"></i> สมัครสมาชิก</a></li>
-                    <?php endif; ?>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium" href="index.php">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium" href="products.php">Products</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium" href="about.php">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium" href="contact.php">Contact</a>
+                    </li>
                 </ul>
-            </nav>
-            <a href="cart.php" class="cart-icon">
-                <i class="fas fa-shopping-cart"></i>
-                <?php if ($cart_count > 0): ?>
-                    <span class="cart-count"><?php echo $cart_count; ?></span>
-                <?php endif; ?>
-            </a>
+                
+                <ul class="navbar-nav align-items-center">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle fw-medium" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user me-2"></i><?= htmlspecialchars($_SESSION['full_name']) ?>
+                            <?php if (isAdmin()): ?>
+                                <span class="badge bg-danger ms-1">Admin</span>
+                            <?php endif; ?>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user me-2"></i>Profile</a></li>
+                            <li><a class="dropdown-item" href="orders.php"><i class="fas fa-shopping-bag me-2"></i>My Orders</a></li>
+                            <?php if (isAdmin()): ?>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="admin/dashboard.php"><i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard</a></li>
+                            <?php endif; ?>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="index.php?action=logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
+                    </li>
+                    
+                    <li class="nav-item ms-3">
+                        <span class="nav-link">
+                            <i class="fas fa-shopping-cart fs-5 text-primary"></i>
+                            <span class="badge bg-danger"><?= count($cart_items) ?></span>
+                        </span>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </header>
+    </nav>
 
-    <div class="container">
-        <div class="cart-content">
-            <h1 class="cart-title">
-                <i class="fas fa-shopping-cart"></i> ตะกร้าสินค้า
-            </h1>
-
-            <?php if (isset($_SESSION['message'])): ?>
-                <div class="alert alert-<?php echo $_SESSION['message_type']; ?>">
-                    <?php 
-                    echo $_SESSION['message'];
-                    unset($_SESSION['message']);
-                    unset($_SESSION['message_type']);
-                    ?>
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex align-items-center mb-4">
+                    <h1 class="mb-0 me-3">
+                        <i class="fas fa-shopping-cart me-2 text-primary"></i>Shopping Cart
+                    </h1>
+                    <span class="badge bg-secondary fs-6"><?= count($cart_items) ?> items</span>
                 </div>
-            <?php endif; ?>
-
-            <?php if (empty($cart_items)): ?>
-                <div class="empty-cart">
-                    <i class="fas fa-shopping-cart"></i>
-                    <h3>ตะกร้าสินค้าของคุณว่างเปล่า</h3>
-                    <p>เลือกสินค้าที่คุณต้องการและเพิ่มลงในตะกร้า</p>
-                    <a href="index.php" class="btn btn-primary" style="margin-top: 20px;">
-                        <i class="fas fa-shopping-bag"></i> เลือกซื้อสินค้า
-                    </a>
+            </div>
+        </div>
+        
+        <?php if (empty($cart_items)): ?>
+            <div class="row">
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-shopping-cart fs-1 text-muted mb-3"></i>
+                        <h3>Your cart is empty</h3>
+                        <p class="text-muted mb-4">Add some products to get started!</p>
+                        <a href="products.php" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Browse Products
+                        </a>
+                    </div>
                 </div>
-            <?php else: ?>
-                <form method="POST">
-                    <table class="cart-table">
-                        <thead>
-                            <tr>
-                                <th>สินค้า</th>
-                                <th>ราคา</th>
-                                <th>จำนวน</th>
-                                <th>รวม</th>
-                                <th>ลบ</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($cart_items as $item): ?>
-                                <tr>
-                                    <td>
-                                        <div class="product-info">
-                                            <div class="product-image">
-                                                <i class="fas fa-fish"></i>
+            </div>
+        <?php else: ?>
+            <div class="row">
+                <!-- Cart Items -->
+                <div class="col-lg-8">
+                    <div id="cart-items">
+                        <?php foreach ($cart_items as $item): ?>
+                            <div class="cart-item" data-product-id="<?= $item['product_id'] ?>">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <div class="d-flex align-items-center">
+                                            <div class="product-image me-3">
+                                                <img src="images/<?= htmlspecialchars($item['image']) ?>" 
+                                                     alt="<?= htmlspecialchars($item['name']) ?>"
+                                                     onerror="this.src='images/placeholder.jpg'">
                                             </div>
-                                            <div class="product-details">
-                                                <h4><?php echo htmlspecialchars($item['product']['name']); ?></h4>
-                                                <p><?php echo htmlspecialchars($item['product']['description']); ?></p>
-                                                <small>คงเหลือ: <?php echo $item['product']['stock']; ?> ชิ้น</small>
+                                            <div>
+                                                <h5 class="mb-1"><?= htmlspecialchars($item['name']) ?></h5>
+                                                <p class="text-muted mb-0">
+                                                    <?= formatPrice($item['price']) ?> each
+                                                </p>
+                                                <small class="text-muted">Stock: <?= $item['stock'] ?></small>
                                             </div>
                                         </div>
-                                    </td>
-                                    <td>
-                                        <span class="price"><?php echo formatPrice($item['product']['price']); ?></span>
-                                    </td>
-                                    <td>
-                                        <input type="number" 
-                                               name="quantities[<?php echo $item['product']['id']; ?>]" 
-                                               value="<?php echo $item['quantity']; ?>" 
-                                               min="1" 
-                                               max="<?php echo $item['product']['stock']; ?>"
-                                               class="quantity-input">
-                                    </td>
-                                    <td>
-                                        <span class="price"><?php echo formatPrice($item['subtotal']); ?></span>
-                                    </td>
-                                    <td>
-                                        <button type="submit" name="remove_item" 
-                                                value="<?php echo $item['product']['id']; ?>" 
-                                                class="remove-btn"
-                                                onclick="return confirm('คุณต้องการลบสินค้านี้ออกจากตะกร้าหรือไม่?')">
+                                    </div>
+                                    
+                                    <div class="col-md-3">
+                                        <div class="d-flex align-items-center">
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    onclick="updateQuantity(<?= $item['product_id'] ?>, <?= $item['quantity'] - 1 ?>)">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                            <input type="number" class="form-control quantity-input mx-2" 
+                                                   value="<?= $item['quantity'] ?>" min="1" max="<?= $item['stock'] ?>"
+                                                   onchange="updateQuantity(<?= $item['product_id'] ?>, this.value)">
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    onclick="updateQuantity(<?= $item['product_id'] ?>, <?= $item['quantity'] + 1 ?>)"
+                                                    <?= $item['quantity'] >= $item['stock'] ? 'disabled' : '' ?>>
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-2">
+                                        <div class="text-end">
+                                            <strong class="item-total">
+                                                <?= formatPrice($item['price'] * $item['quantity']) ?>
+                                            </strong>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-1">
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                onclick="removeItem(<?= $item['product_id'] ?>)"
+                                                title="Remove item">
                                             <i class="fas fa-trash"></i>
                                         </button>
-                                        <input type="hidden" name="product_id" value="<?php echo $item['product']['id']; ?>">
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-
-                    <div class="cart-summary">
-                        <div class="total-row">
-                            <span>ยอดรวมทั้งหมด:</span>
-                            <span class="total-price"><?php echo formatPrice($total_price); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="products.php" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Continue Shopping
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Order Summary -->
+                <div class="col-lg-4">
+                    <div class="summary-card">
+                        <h4 class="mb-4">
+                            <i class="fas fa-receipt me-2"></i>Order Summary
+                        </h4>
+                        
+                        <div class="d-flex justify-content-between mb-3">
+                            <span>Subtotal:</span>
+                            <strong id="subtotal"><?= formatPrice($subtotal) ?></strong>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mb-3">
+                            <span>Shipping:</span>
+                            <span id="shipping">
+                                <?php if ($shipping > 0): ?>
+                                    <?= formatPrice($shipping) ?>
+                                <?php else: ?>
+                                    <span class="text-success">Free</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                        
+                        <?php if ($subtotal < 75): ?>
+                            <div class="alert alert-info p-2 mb-3">
+                                <small>
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Add <?= formatPrice(75 - $subtotal) ?> more for free shipping!
+                                </small>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="d-flex justify-content-between mb-3">
+                            <span>Tax (8%):</span>
+                            <span id="tax"><?= formatPrice($tax) ?></span>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex justify-content-between mb-4">
+                            <strong>Total:</strong>
+                            <strong class="fs-5 text-primary" id="total"><?= formatPrice($total) ?></strong>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button class="btn btn-primary btn-lg mb-3" onclick="proceedToCheckout()">
+                                <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="clearCart()">
+                                <i class="fas fa-trash me-2"></i>Clear Cart
+                            </button>
                         </div>
                     </div>
-
-                    <div class="cart-actions">
-                        <a href="index.php" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> ช้อปต่อ
-                        </a>
-                        <button type="submit" name="update_cart" class="btn btn-primary">
-                            <i class="fas fa-sync"></i> อัพเดตตะกร้า
-                        </button>
-                        <a href="checkout.php" class="btn btn-success">
-                            <i class="fas fa-credit-card"></i> ชำระเงิน
-                        </a>
-                    </div>
-                </form>
-            <?php endif; ?>
-        </div>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        function updateQuantity(productId, quantity) {
+            quantity = Math.max(0, parseInt(quantity));
+            
+            fetch('cart.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `action=update&product_id=${productId}&quantity=${quantity}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error updating cart: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating cart');
+            });
+        }
+        
+        function removeItem(productId) {
+            if (confirm('Are you sure you want to remove this item from your cart?')) {
+                fetch('cart.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `action=remove&product_id=${productId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error removing item: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error removing item');
+                });
+            }
+        }
+        
+        function clearCart() {
+            if (confirm('Are you sure you want to clear your entire cart?')) {
+                // Remove all items
+                const items = document.querySelectorAll('.cart-item');
+                items.forEach(item => {
+                    const productId = item.dataset.productId;
+                    fetch('cart.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `action=remove&product_id=${productId}`
+                    });
+                });
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            }
+        }
+        
+        function proceedToCheckout() {
+            alert('Checkout functionality would be implemented here!');
+            // window.location.href = 'checkout.php';
+        }
+    </script>
 </body>
 </html>
